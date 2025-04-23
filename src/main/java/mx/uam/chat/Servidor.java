@@ -1,70 +1,46 @@
 package mx.uam.chat;
+import java.io.BufferedReader;
 import java.io.IOException;
-import java.net.DatagramPacket;
-import java.net.DatagramSocket;
-import java.net.InetAddress;
-import java.net.SocketException;
+import java.io.InputStreamReader;
+import java.io.PrintWriter;
+import java.net.ServerSocket;
+import java.net.Socket;
 
 public class Servidor {
     private static final int PUERTO = 6789;
-    private static final int BUFFER_SIZE = 1024;
-
     public static void main(String[] args) {
-        try (DatagramSocket socket = new DatagramSocket(PUERTO)) {
-            System.out.println("Servidor UDP de números primos iniciado en el puerto " + PUERTO);
-            System.out.println("Esperando conexiones...");
+        try (ServerSocket serverSocket = new ServerSocket(PUERTO)) {
+            System.out.println("Servidor TCP iniciado. Esperando conexiones en el puerto " + PUERTO);
 
             while (true) {
-                try {
-                    // Buffer para recibir datos
-                    byte[] bufferRecepcion = new byte[BUFFER_SIZE];
-                    DatagramPacket paqueteRecepcion = new DatagramPacket(bufferRecepcion, bufferRecepcion.length);
-                    
-                    // Recibir solicitud del cliente
-                    socket.receive(paqueteRecepcion);
-                    
-                    // Obtener dirección y puerto del cliente
-                    InetAddress direccionCliente = paqueteRecepcion.getAddress();
-                    int puertoCliente = paqueteRecepcion.getPort();
-                    
-                    // Procesar el número recibido
-                    String numeroStr = new String(paqueteRecepcion.getData(), 0, paqueteRecepcion.getLength());
-                    String respuesta;
-                    
+                try (Socket socketCliente = serverSocket.accept();
+                     BufferedReader in = new BufferedReader(new InputStreamReader(socketCliente.getInputStream()));
+                     PrintWriter out = new PrintWriter(socketCliente.getOutputStream(), true)) {
+
+                    System.out.println("Cliente conectado: " + socketCliente.getInetAddress());
+                    String numeroStr = in.readLine();
+
+                    if (numeroStr == null || numeroStr.equalsIgnoreCase("salir")) {
+                        System.out.println("Cliente cerró la conexión");
+                        continue;
+                    }
+
                     try {
                         long numero = Long.parseLong(numeroStr);
                         boolean esPrimo = esPrimo(numero);
-                        respuesta = "El número " + numero + (esPrimo ? " ES primo" : " NO ES primo");
+                        String respuesta = "El número " + numero + (esPrimo ? " ES primo" : " NO ES primo");
+                        out.println(respuesta);
+                        System.out.println("Respuesta enviada: " + respuesta);
                     } catch (NumberFormatException e) {
-                        respuesta = "Error: '" + numeroStr + "' no es un número válido";
+                        out.println("Error: Ingrese un número válido");
                     }
-                    
-                    // Enviar respuesta al cliente
-                    byte[] bufferEnvio = respuesta.getBytes();
-                    DatagramPacket paqueteEnvio = new DatagramPacket(
-                        bufferEnvio, 
-                        bufferEnvio.length, 
-                        direccionCliente, 
-                        puertoCliente
-                    );
-                    socket.send(paqueteEnvio);
-                    
-                    System.out.println("Procesada solicitud de " + direccionCliente + ": " + respuesta);
-                    
-                } catch (IOException e) {
-                    System.err.println("Error al procesar la solicitud: " + e.getMessage());
                 }
             }
-        } catch (SocketException e) {
-            System.err.println("Error al iniciar el servidor: " + e.getMessage());
+        } catch (IOException e) {
+            System.err.println("Error en el servidor: " + e.getMessage());
         }
     }
 
-    /**
-     * Método para verificar si un número es primo
-     * @param numero El número a verificar
-     * @return true si es primo, false si no lo es
-     */
     private static boolean esPrimo(long numero) {
         if (numero <= 1) return false;
         if (numero <= 3) return true;
